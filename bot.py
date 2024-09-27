@@ -63,7 +63,7 @@ async def status(interaction: discord.Interaction):
                     f"**Bot Status: **{status}\n"
                     f"**Latency: **{latency * 1000:.2f} ms\n"
                     f"**Time Online: **{days} days, {hours} hours, {minutes} minutes, {seconds} seconds\n\n",
-        color=discord.Color.from_rgb(239, 0, 5)
+        color=discord.Color.from_rgb(15, 33, 73)
     )
     current_directory = os.getcwd()
     log.info(current_directory)
@@ -71,12 +71,42 @@ async def status(interaction: discord.Interaction):
     complete_path = os.path.join(current_directory, image_path)
     log.info(image_path)
     embed.set_thumbnail(url=complete_path)
-    embed.set_footer(text="Powered by: 💻 DevArt 💻")
+    embed.set_footer(text="Powered by: 💻 DevArt 💻 - Arturo B.")
 
     with open(complete_path, 'rb') as f:
         file = discord.File(f, filename='logo2.jpg')
         embed.set_thumbnail(url='attachment://logo2.jpg')
         await interaction.response.send_message(file=file, embed=embed)
+
+
+@bot.tree.command(name="reviews-template")
+async def reviews_template(interaction: discord.Interaction):
+    """It shows information about the reviews template"""
+
+    reviews_channel_id = 1288979882507894805
+    channel = bot.get_channel(reviews_channel_id)
+
+    embed = discord.Embed(
+        title="⭐ Reviews ⭐",
+        description=f"*To post a review after the development of any project, please fill in the following template:* \n\n"
+                    f"**Project Name: ** \n"
+                    f"**Stars from 1 to 5 ⭐: ** \n"
+                    f"**Comments: ** \n\n",
+        color=discord.Color.from_rgb(15, 33, 73)
+    )
+    current_directory = os.getcwd()
+    log.info(current_directory)
+    image_path = os.path.join('img', 'logo2.jpg')
+    complete_path = os.path.join(current_directory, image_path)
+    log.info(image_path)
+    embed.set_thumbnail(url=complete_path)
+    embed.set_footer(text="Powered by: 💻 DevArt 💻 - Arturo B.")
+
+    with open(complete_path, 'rb') as f:
+        file = discord.File(f, filename='logo2.jpg')
+        embed.set_thumbnail(url='attachment://logo2.jpg')
+        await channel.send(file=file, embed=embed)
+        await interaction.response.send_message("Template sent!")
 
 
 '''@bot.tree.command(name="rank-up")
