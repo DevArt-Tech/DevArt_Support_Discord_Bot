@@ -42,6 +42,7 @@ jobs:
           chmod 600 /home/runner/.ssh/id_rsa
           ssh -o StrictHostKeyChecking=no -i /home/runner/.ssh/id_rsa root@31.220.82.248 << 'EOF'
             cd projects/Discord_Bots/DevArt_Support_Discord_Bot
+            git pull
             docker-compose pull
             docker-compose build
             docker-compose up -d
