@@ -9,6 +9,8 @@ from datetime import datetime, timedelta
 
 import logging as log
 
+from discord.ui import Select, View, Button
+
 # Configurar el sistema de logging
 log.basicConfig(level=log.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -29,6 +31,8 @@ intents.guilds = True
 intents.reactions = True
 
 DISCORD_TOKEN = os.environ["discord_token"]
+REVIEWS_CHANNEL_ID = 1288979882507894805
+ORDERS_CHANNEL_ID = 1288986972257390602
 
 # Configura tu bot con los intents y el prefijo
 bot = commands.Bot(command_prefix='y!', intents=intents, help_command=None)
@@ -83,8 +87,8 @@ async def status(interaction: discord.Interaction):
 async def reviews_template(interaction: discord.Interaction):
     """It shows information about the reviews template"""
 
-    reviews_channel_id = 1288979882507894805
-    channel = bot.get_channel(reviews_channel_id)
+
+    channel = bot.get_channel(REVIEWS_CHANNEL_ID)
 
     embed = discord.Embed(
         title="⭐ Reviews ⭐",
@@ -109,70 +113,124 @@ async def reviews_template(interaction: discord.Interaction):
         await interaction.response.send_message("Template sent!")
 
 
-'''@bot.tree.command(name="rank-up")
-async def rank_up(interaction: discord.Interaction, member: discord.Member, new_role: discord.Role):
-    """ Asciende a un miembro de la Yakuza y muestra un mensaje sobre ello """
+# Crear un comando de barra usando el decorador tree.command
+@bot.tree.command(name="ticket-template", description="Crea un ticket a través de una plantilla")
+async def ticket_template(interaction: discord.Interaction):
+    CUSTOMER_IN_SUPPORT_ROLE = "💻 Customer in Support 💻"
+    CUSTOMER_RESOLVED_ROLE = "✅ Customer Resolved ✅"
 
-    for category, subranks in c.config["ranks"].items():
-        possible_roles = [category] + (subranks or [])
-        member_roles = member.roles
-        if any(role.name in possible_roles for role in member_roles):
-            roles_to_remove = [role for role in member_roles if role.name == category or (subranks and role.name in subranks)]
+    embed = discord.Embed(title="Orders System", description="Select an option to create an order")
 
-            if roles_to_remove:
-                await member.remove_roles(*roles_to_remove)
+    select = Select(
+        placeholder="Selecciona el tipo de ticket...",
+        options=[
+            discord.SelectOption(label="Order from Fiverr", description="Support for Fiverr orders", emoji="🛒"),
+            discord.SelectOption(label="Bot Improvement Support", description="Support to improve a bot", emoji="🤖")
+        ]
+    )
 
-    # Asigna el nuevo rango
-    await member.add_roles(new_role)
+    # Definir la función callback para el select (desplegable)
+    async def select_callback(interaction_select: discord.Interaction):
+        selected_option = select.values[0]
+        if selected_option == "Order from Fiverr":
+            tipo_ticket = "Fiverr-order"
+        elif selected_option == "Bot Improvement Support":
+            tipo_ticket = "Bot-support"
 
-    for category, subranks in c.config["ranks"].items():
-        if subranks and new_role.name in subranks:
-            category_role = discord.utils.get(member.guild.roles, name=category)
-            if category_role:
-                await member.add_roles(category_role)
+        # Crear una categoría personalizada usando el username del cliente
+        username = interaction_select.user.name
+        category_name = f"{tipo_ticket}-{username}"
+        category = discord.utils.get(interaction_select.guild.categories, name=category_name)
+        if category is None:
+            # Configuración de permisos
+            overwrites = {
+                interaction_select.guild.default_role: discord.PermissionOverwrite(view_channel=False),
+                # Ocultar canales para todos
+                interaction_select.user: discord.PermissionOverwrite(view_channel=True, send_messages=True),
+                # Solo el usuario puede ver y enviar mensajes
+                interaction_select.guild.me: discord.PermissionOverwrite(view_channel=True)
+                # El bot debe ver los canales
+            }
+            category = await interaction_select.guild.create_category(category_name, overwrites=overwrites)
 
-    if new_role.name == "ASCENSO A KYODAI":
-        random_answer = give_random_answer("rank_up", "bot_answers_phase")
+        # Crear canales de texto y voz asociados al ticket con los mismos permisos
+        general_channel = await interaction_select.guild.create_text_channel('💬 ┆ General Chat', category=category,
+                                                                             overwrites=overwrites)
+        bot_tests_channel = await interaction_select.guild.create_text_channel('🤖 ┆ Bot tests', category=category,
+                                                                               overwrites=overwrites)
+        meetings_channel = await interaction_select.guild.create_voice_channel('🎧 ┆ Meetings', category=category,
+                                                                               overwrites=overwrites)
+
+        # Asignar el rol al usuario que abrió el ticket
+        role = discord.utils.get(interaction_select.guild.roles, name=CUSTOMER_IN_SUPPORT_ROLE)
+        if role:
+            await interaction_select.user.add_roles(role)
+
+        # Notificar al usuario sobre los canales creados
+        await general_channel.send(
+            f"{interaction_select.user.mention}, your ticket has been created. This is the general chat with your developer.")
+        await bot_tests_channel.send(f"You can test your custom bot here!")
+        await interaction_select.response.send_message(f"¡Your category and channels have been created: {category_name}!",
+                                                       ephemeral=True)
+
+        # Crear un botón para cerrar el ticket
+        close_button = Button(label="Close Ticket", style=discord.ButtonStyle.danger)
+
+        # Definir la función callback para cerrar el ticket
+        async def close_ticket(interaction_close: discord.Interaction):
+            # Obtiene la categoría donde se encuentra el ticket
+            category = interaction.channel.category
+
+            if category is None or not category.name.startswith("Fiverr-order-") and not category.name.startswith(
+                    "Bot-support-"):
+                await interaction.response.send_message(
+                    "This command can only be used within a ticket category.", ephemeral=True)
+                return
+
+            # Asignar rol al usuario antes de eliminar
+            role_to_assign = discord.utils.get(interaction.guild.roles, name=CUSTOMER_RESOLVED_ROLE)
+
+            if role_to_assign:
+                await interaction.user.add_roles(role_to_assign)
+                await interaction.response.send_message(f"You've been assigned as: {role_to_assign.name}.",
+                                                        ephemeral=True)
+
+            # Eliminar los canales de texto y voz
+            for channel in category.channels:
+                await channel.delete()
+
+            # Eliminar la categoría
+            await category.delete()
+
+            # Mensaje final
+            await interaction.followup.send(
+                "The ticket has been closed and all associated channels have been deleted.", ephemeral=True)
+
+        # Asignar la función callback al botón
+        close_button.callback = close_ticket
+
+        # Crear una vista para el botón
+        close_view = View()
+        close_view.add_item(close_button)
+
+        # Enviar el mensaje de confirmación con el botón
+        await interaction_select.response.send_message(embed=embed, view=close_view)
+
+
+    # Asignar el callback al select
+    select.callback = select_callback
+
+    # Crear una vista para el select (desplegable)
+    view = View()
+    view.add_item(select)
+
+    # Enviar el embed con el select (desplegable) a un canal específico
+    target_channel = bot.get_channel(ORDERS_CHANNEL_ID)  # Obtén el canal por su ID
+    if target_channel:
+        await target_channel.send(embed=embed, view=view)
+        await interaction.response.send_message("Embed created in Orders channel", ephemeral=True)
     else:
-        random_answer = give_random_answer("rank_up")
-
-    await interaction.response.send_message(random_answer.format(member.mention, new_role.mention))
-
-
-@bot.tree.command(name="rank-down")
-async def rank_down(interaction: discord.Interaction, member: discord.Member, new_role: discord.Role):
-    """ Desciende el rango a un miembro de la Yakuza y muestra un mensaje sobre ello """
-
-    for category, subranks in c.config["ranks"].items():
-        possible_roles = [category] + (subranks or [])
-        member_roles = member.roles
-        if any(role.name in possible_roles for role in member_roles):
-            roles_to_remove = [role for role in member_roles if role.name == category or (subranks and role.name in subranks)]
-
-            if roles_to_remove:
-                await member.remove_roles(*roles_to_remove)
-
-    # Asigna el nuevo rango
-    await member.add_roles(new_role)
-
-    for category, subranks in c.config["ranks"].items():
-        if subranks and new_role.name in subranks:
-            category_role = discord.utils.get(member.guild.roles, name=category)
-            if category_role:
-                await member.add_roles(category_role)
-
-    if new_role.name == "ASCENSO A KYODAI":
-        random_answer = give_random_answer("rank_down", "bot_answers_phase")
-    else:
-        random_answer = give_random_answer("rank_down")
-    await interaction.response.send_message(random_answer.format(member.mention, new_role.mention))
-
-
-def give_random_answer(command, sub_command="bot_answers"):
-    if c.config is not None:
-        bot_anwser = random.choice(c.config["commands"][command][sub_command])
-        print(f'Respuesta escogida: {bot_anwser}')
-        return bot_anwser'''
+        await interaction.response.send_message("Channel not found", ephemeral=True)
 
 
 def run_bot():
