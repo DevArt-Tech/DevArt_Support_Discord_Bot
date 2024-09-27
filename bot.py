@@ -119,7 +119,19 @@ async def ticket_template(interaction: discord.Interaction):
     CUSTOMER_IN_SUPPORT_ROLE = "💻 Customer in Support 💻"
     CUSTOMER_RESOLVED_ROLE = "✅ Customer Resolved ✅"
 
-    embed = discord.Embed(title="Orders System", description="Select an option to create an order")
+    embed = discord.Embed(
+        title="📦 Orders System 📦",
+        description=f"*Please, select an order option to create a ticket and start working on it.* \n",
+        color=discord.Color.from_rgb(15, 33, 73)
+    )
+    current_directory = os.getcwd()
+    log.info(current_directory)
+    image_path = os.path.join('img', 'logo2.jpg')
+    complete_path = os.path.join(current_directory, image_path)
+    log.info(image_path)
+    embed.set_thumbnail(url=complete_path)
+    embed.set_footer(text="Powered by: 💻 DevArt 💻 - Arturo B.")
+
 
     select = Select(
         placeholder="Selecciona el tipo de ticket...",
@@ -129,71 +141,47 @@ async def ticket_template(interaction: discord.Interaction):
         ]
     )
 
-    # Definir la función callback para el select (desplegable)
     async def select_callback(interaction_select: discord.Interaction):
         selected_option = select.values[0]
-        if selected_option == "Order from Fiverr":
-            tipo_ticket = "Fiverr-order"
-        elif selected_option == "Bot Improvement Support":
-            tipo_ticket = "Bot-support"
-
-        # Crear una categoría personalizada usando el username del cliente
+        tipo_ticket = "Fiverr-order" if selected_option == "Order from Fiverr" else "Bot-support"
         username = interaction_select.user.name
         category_name = f"{tipo_ticket}-{username}"
         category = discord.utils.get(interaction_select.guild.categories, name=category_name)
+
         if category is None:
-            # Configuración de permisos
             overwrites = {
                 interaction_select.guild.default_role: discord.PermissionOverwrite(view_channel=False),
-                # Ocultar canales para todos
                 interaction_select.user: discord.PermissionOverwrite(view_channel=True, send_messages=True),
-                # Solo el usuario puede ver y enviar mensajes
                 interaction_select.guild.me: discord.PermissionOverwrite(view_channel=True)
-                # El bot debe ver los canales
             }
             category = await interaction_select.guild.create_category(category_name, overwrites=overwrites)
 
-        # Crear canales de texto y voz asociados al ticket con los mismos permisos
-        general_channel = await interaction_select.guild.create_text_channel('💬 ┆ General Chat', category=category,
-                                                                             overwrites=overwrites)
-        bot_tests_channel = await interaction_select.guild.create_text_channel('🤖 ┆ Bot tests', category=category,
-                                                                               overwrites=overwrites)
-        meetings_channel = await interaction_select.guild.create_voice_channel('🎧 ┆ Meetings', category=category,
-                                                                               overwrites=overwrites)
+        # Crear canales de texto y voz asociados al ticket
+        general_channel = await interaction_select.guild.create_text_channel('💬 ┆ General-Chat', category=category, overwrites=overwrites)
+        bot_tests_channel = await interaction_select.guild.create_text_channel('🤖 ┆ Bot-tests', category=category, overwrites=overwrites)
+        meetings_channel = await interaction_select.guild.create_voice_channel('🎧 ┆ Meetings', category=category, overwrites=overwrites)
 
         # Asignar el rol al usuario que abrió el ticket
         role = discord.utils.get(interaction_select.guild.roles, name=CUSTOMER_IN_SUPPORT_ROLE)
         if role:
             await interaction_select.user.add_roles(role)
 
-        # Notificar al usuario sobre los canales creados
-        await general_channel.send(
-            f"{interaction_select.user.mention}, your ticket has been created. This is the general chat with your developer.")
-        await bot_tests_channel.send(f"You can test your custom bot here!")
-        await interaction_select.response.send_message(f"¡Your category and channels have been created: {category_name}!",
-                                                       ephemeral=True)
+        await general_channel.send(f"{interaction_select.user.mention}, your ticket has been created. This is the general chat with your developer.")
+        await bot_tests_channel.send("You can test your custom bot here!")
 
         # Crear un botón para cerrar el ticket
         close_button = Button(label="Close Ticket", style=discord.ButtonStyle.danger)
 
-        # Definir la función callback para cerrar el ticket
         async def close_ticket(interaction_close: discord.Interaction):
-            # Obtiene la categoría donde se encuentra el ticket
-            category = interaction.channel.category
-
-            if category is None or not category.name.startswith("Fiverr-order-") and not category.name.startswith(
-                    "Bot-support-"):
-                await interaction.response.send_message(
-                    "This command can only be used within a ticket category.", ephemeral=True)
+            category = general_channel.category
+            if category is None or not category.name.startswith("Fiverr-order-") and not category.name.startswith("Bot-support-"):
+                await interaction_close.response.send_message("This command can only be used within a ticket category.", ephemeral=True)
                 return
 
-            # Asignar rol al usuario antes de eliminar
-            role_to_assign = discord.utils.get(interaction.guild.roles, name=CUSTOMER_RESOLVED_ROLE)
-
+            role_to_assign = discord.utils.get(interaction_close.guild.roles, name=CUSTOMER_RESOLVED_ROLE)
             if role_to_assign:
-                await interaction.user.add_roles(role_to_assign)
-                await interaction.response.send_message(f"You've been assigned as: {role_to_assign.name}.",
-                                                        ephemeral=True)
+                await interaction_close.user.add_roles(role_to_assign)
+                await interaction_close.response.send_message(f"You've been assigned as: {role_to_assign.name}.", ephemeral=True)
 
             # Eliminar los canales de texto y voz
             for channel in category.channels:
@@ -201,31 +189,26 @@ async def ticket_template(interaction: discord.Interaction):
 
             # Eliminar la categoría
             await category.delete()
+            await interaction_close.followup.send("The ticket has been closed and all associated channels have been deleted.", ephemeral=True)
 
-            # Mensaje final
-            await interaction.followup.send(
-                "The ticket has been closed and all associated channels have been deleted.", ephemeral=True)
-
-        # Asignar la función callback al botón
         close_button.callback = close_ticket
 
         # Crear una vista para el botón
         close_view = View()
         close_view.add_item(close_button)
 
-        # Enviar el mensaje de confirmación con el botón
-        await interaction_select.response.send_message(embed=embed, view=close_view)
+        # Enviar el mensaje de confirmación con el botón al canal general del ticket
+        await general_channel.send(embed=embed, view=close_view)
 
+        # Responder a la interacción inicial
+        await interaction_select.response.send_message(f"¡Your category and channels have been created: {category_name}!", ephemeral=True)
 
-    # Asignar el callback al select
     select.callback = select_callback
-
-    # Crear una vista para el select (desplegable)
     view = View()
     view.add_item(select)
 
-    # Enviar el embed con el select (desplegable) a un canal específico
-    target_channel = bot.get_channel(ORDERS_CHANNEL_ID)  # Obtén el canal por su ID
+    # Enviar el embed con el select al canal específico de órdenes
+    target_channel = bot.get_channel(ORDERS_CHANNEL_ID)
     if target_channel:
         await target_channel.send(embed=embed, view=view)
         await interaction.response.send_message("Embed created in Orders channel", ephemeral=True)
