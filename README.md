@@ -1,5 +1,5 @@
 <div style="display: flex; justify-content: center;">
-    <img alt="" src="" width="200">
+    <img alt="" src="https://github.com/arturobp3/DevArt_Support_Discord_Bot/blob/main/img/devart-logo.png" width="200">
 </div>
 
 #  💻 DevArt 💻  - Tailored Software Development 
