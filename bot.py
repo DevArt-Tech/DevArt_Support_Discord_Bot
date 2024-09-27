@@ -131,6 +131,9 @@ async def ticket_template(interaction: discord.Interaction):
     log.info(image_path)
     embed.set_thumbnail(url=complete_path)
     embed.set_footer(text="Powered by: 💻 DevArt 💻 - Arturo B.")
+    with open(complete_path, 'rb') as f:
+        file = discord.File(f, filename='logo2.jpg')
+        embed.set_thumbnail(url='attachment://logo2.jpg')
 
 
     select = Select(
